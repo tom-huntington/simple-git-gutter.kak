@@ -46,7 +46,7 @@ process_added()
 
     while [ $index -lt $to_count ]; do
         line_number=$((to_line+index))
-        modifications="${modifications}${line_number}|{green}+ "
+        modifications="${modifications}${line_number}|{variable}┃ "
         index=$((index+1))
     done
     echo "$modifications"
@@ -54,6 +54,7 @@ process_added()
 
 process_removed()
 {
+    # from_line=$1
     to_line=$1
     index=0
     # echo "process_removed: to_line=${to_line}"
@@ -62,7 +63,7 @@ process_removed()
     [ $to_line -eq 0 ] \
         && return 0
 
-    echo "${to_line}|{red}- "
+    echo "$((${to_line}+1))|{value}┃ "
 }
 
 process_modified()
@@ -75,7 +76,7 @@ process_modified()
 
     while [ $index -lt $to_count ]; do
         line_number=$((to_line+index))
-        modifications="${modifications}${line_number}|{blue}~ "
+        modifications="${modifications}${line_number}|{function}┃ "
         index=$((index+1))
     done
     echo "$modifications"
@@ -92,12 +93,12 @@ process_modified_and_added()
 
     while [ $index -lt $from_count ]; do
         line_number=$((to_line+index))
-        modifications="${modifications}${line_number}|{blue}~ "
+        modifications="${modifications}${line_number}|{function}┃ "
         index=$((index+1))
     done
     while [ $index -lt $to_count ]; do
         line_number=$((to_line+index))
-        modifications="${modifications}${line_number}|{green}+ "
+        modifications="${modifications}${line_number}|{variable}┃ "
         index=$((index+1))
     done
     echo "$modifications"
@@ -113,10 +114,10 @@ process_modified_and_removed()
 
     while [ $index -lt $to_count ]; do
         line_number=$((to_line+index))
-        modifications="${modifications}${line_number}|{blue}~ "
+        modifications="${modifications}${line_number}|{function}┃ "
         index=$((index+1))
     done
-    echo "$modifications"
+    echo "${modifications}$((to_line+index))|{value}┃ "
 }
 
 process_hunk()
@@ -144,7 +145,7 @@ process_hunk()
         && return 0
     # echo "passed is_modified_and_added"
     is_modified_and_removed $from_count $to_count \
-        && process_modified_and_removed $from_count $to_count \
+        && process_modified_and_removed $to_line $to_count \
         && return 0
     # echo "not is_modified_and_removed"
 
@@ -157,21 +158,42 @@ parse_diff_line()
     echo "$1" | sed -rn 's/^@@ -([0-9]+),?([0-9]*) \+([0-9]+),?([0-9]*) @@.*/\1 \2 \3 \4 /p' | sed 's/  / 1 /g'
 }
 
-gitout="$(git --no-pager diff --no-ext-diff --no-color -U0 HEAD test.md | grep '^@@ ')"
+diff_temp_files()
+{
+    gitout="$(git --no-pager diff --no-ext-diff --no-color -U0 ${temp_head} ${temp_buffer} | grep '^@@ ')"
+    # modified_lines=""
+    # echo "$gitout"
+    # echo "echo temp_head=${temp_head} end filename=${temp_buffer} end" # set-option buffer git_diff_line_specs %val{timestamp} ${modified_lines}"
+    cat "$gitout" > gitdiffout.txt
+    
 
-modified_lines=""
-# echo "$gitout"
-
-echo "${gitout}" | {
-    while IFS='' read -r LINE <&0 || [ -n "${LINE}" ]; do
-        # echo "line: ${LINE}
-        diff_array="$(parse_diff_line "${LINE}")"
-        # echo "from_line from_count to_line to_count"
-        # echo "$diff_array"
-        additional_modified_lines=$(process_hunk $diff_array)
-        modified_lines="${modified_lines}${additional_modified_lines}"
-    done
-    echo "set-option buffer git_diff_line_specs %val{timestamp} ${modified_lines}"
+    echo "${gitout}" | {
+        while IFS='' read -r LINE <&0 || [ -n "${LINE}" ]; do
+            # echo "line: ${LINE}
+            diff_array="$(parse_diff_line "${LINE}")"
+            # echo "from_line from_count to_line to_count"
+            # echo "$diff_array"
+            additional_modified_lines=$(process_hunk $diff_array)
+            modified_lines="${modified_lines}${additional_modified_lines}"
+        done
+        # echo "$gitout"
+        echo "set-option buffer git_diff_line_specs %val{timestamp} ${modified_lines}"
+        # echo "isas echo buffile=${kak_buffile} end filename=${kak_opt_gitgutter_temp_buffer} end" # set-option buffer git_diff_line_specs %val{timestamp} ${modified_lines}"
+    }
 }
 
+git_diff()
+{
+    temp_buffer="$1"
+    buffile="$2"
+    temp_head=$(mktemp -t gitgutter.head.XXXXXX)
+    repo_relative_file="HEAD:$(git ls-files --full-name $buffile)"
+    git --no-pager show $repo_relative_file > "$temp_head" \
+        && diff_temp_files
+
+    cat "$temp_head" > gitshow.txt
+    cat "$temp_buffer" > buffer.txt
+
+    rm -f "$temp_head" "$temp_buffer"
+}
 
