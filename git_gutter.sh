@@ -164,7 +164,7 @@ git_diff()
     [ -e "${buffile}" ] \
         && cd "$(dirname "${buffile}")" \
         && temp_head=$(mktemp -t gitgutter.head.XXXXXX) \
-        && repo_relative_file="$(git ls-files --full-name $buffile)" \
+        && repo_relative_file="$(git ls-files --full-name $buffile | head -1)" \
         && git --no-pager show "HEAD:$repo_relative_file" > "$temp_head" \
         && diff_temp_files \
         || echo "set-option buffer git_diff_line_specs %val{timestamp}"
