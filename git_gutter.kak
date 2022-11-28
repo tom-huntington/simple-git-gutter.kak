@@ -10,7 +10,7 @@ hook global BufCreate .* gitdiff
 
 define-command -hidden gitdiff %{
     set-option buffer gitgutter_buffer %sh{ mktemp -t gitgutter.buffer.XXXXXX }
-    write! %opt{gitgutter_buffer}
+    evaluate-commands -no-hooks %{ write! %opt{gitgutter_buffer} }
     evaluate-commands %sh{
     . "$kak_opt_git_gutter_sh_source"
     git_diff "${kak_opt_gitgutter_buffer}" "${kak_buffile}"
